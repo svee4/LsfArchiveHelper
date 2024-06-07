@@ -6,7 +6,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  NAME_BASE: svee4/lsfarchivehelper
 
 jobs:
   client:
@@ -30,16 +30,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5.5.1
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.NAME_BASE }}.client
+
       - name: Build and push Docker image
-        id: push
         uses: docker/build-push-action@v5.3.0
         with:
-          context: .
+          context: ./src/LsfArchiveHelper.Client
           file: ./src/LsfArchiveHelper.Client/Dockerfile
           push: true
-          tags: svee4/lsfarchivehelper.client:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            BUILDCONST=ApiDomain=https://api.ssera.estral.fi
+            BUILDCONST=ApiDomain='https://sserapi.estral.fi'
 
   api:
     name: Api build and push
@@ -61,12 +67,19 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5.5.1
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.NAME_BASE }}.api
           
       - name: Build and push Docker image
         id: push
         uses: docker/build-push-action@v5.3.0
         with:
-          context: .
+          context: ./src/LsfArchiveHelper.Api
           file: ./src/LsfArchiveHelper.Api/Dockerfile
           push: true
-          tags: svee4/lsfarchiveHelper.api:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
