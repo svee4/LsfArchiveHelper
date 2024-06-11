@@ -2,7 +2,7 @@
 	import { EventsApiHelper } from "../EventsApiHelper";
 	import { queryParam } from "sveltekit-search-params";
 	import type { EventHandler } from "svelte/elements";
-	import type { Writable } from "svelte/store";
+	import { get, type Writable } from "svelte/store";
 
 	// this component is tightly coupled to the list page
 
@@ -102,6 +102,10 @@
 		},
 		queryParamOptions,
 	) as Writable<number | null>;
+
+	if (get(pageSizeStore) === null) {
+		$pageSizeStore = 100;
+	}
 
 	$: orderBy = $orderByStore!;
 	$: sort = $sortStore!;
