@@ -1,6 +1,6 @@
-using System.Globalization;
 using Immediate.Apis.Shared;
 using Immediate.Handlers.Shared;
+using Immediate.Validations.Shared;
 using LsfArchiveHelper.Api.Database;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,17 +10,23 @@ namespace LsfArchiveHelper.Api.Features.Events;
 [MapGet("/api/events")]
 public sealed partial class GetEvents
 {
-	public sealed record Query
+
+	[Validate]
+	public sealed partial record Query : IValidationTarget<Query>
 	{
-		
-		[Immediate.Validations.Shared.EnumValue]
+
 		public OrderByType? OrderBy { get; init; }
-		
-		[Immediate.Validations.Shared.EnumValue]
+
 		public SortType? Sort { get; init; }
-		
+
 		public EventType[]? EventTypes { get; init; }
 		public string? Search { get; init; }
+
+		[GreaterThanOrEqual(1)]
+		public int Page { get; init; }
+
+		[GreaterThanOrEqual(10), LessThanOrEqual(5000)]
+		public int PageSize { get; init; }
 	}
 
 	private static async ValueTask<ResponseModel> HandleAsync(
@@ -46,7 +52,7 @@ public sealed partial class GetEvents
 		}
 
 		var isDescending = requestQuery.Sort == SortType.Descending;
-		query = (requestQuery.OrderBy, isDescending) switch
+		var orderedQuery = (requestQuery.OrderBy, isDescending) switch
 		{
 			(OrderByType.Date, true) => query.OrderByDescending(entry => entry.DateUtc),
 			(OrderByType.Date, false) => query.OrderBy(entry => entry.DateUtc),
@@ -54,28 +60,43 @@ public sealed partial class GetEvents
 			(OrderByType.Type, false) => query.OrderBy(entry => entry.Type),
 			(OrderByType.Title, true) => query.OrderByDescending(entry => entry.Title),
 			(OrderByType.Title, false) => query.OrderBy(entry => entry.Title),
-			_ => query
+			_ => null
 		};
 
-		var events = await query
-			.Select(m => new EventModel(
-				m.DateUtc.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-				(EventType)m.Type,
-				m.Title,
-				m.Link))
-			.ToListAsync(token);
+		query = orderedQuery is not null
+			? orderedQuery.ThenByDescending(entry => entry.Id)
+			: query.OrderByDescending(entry => entry.Id);
+
+		var skips = (requestQuery.Page - 1) * requestQuery.PageSize;
+
+		var count = await query.CountAsync(token);
+
+		var events = skips > count
+			? []
+			: await query
+				.Select(m => new EventModel(
+					m.DateUtc,
+					(EventType)m.Type,
+					m.Title,
+					m.Link))
+				.Skip(skips)
+				.Take(requestQuery.PageSize)
+				.ToListAsync(token);
 
 		var lastUpdate = await dbContext.WorkerHistory
 			.Select(entry => entry.CreatedUtc)
 			.OrderByDescending(date => date)
 			.FirstOrDefaultAsync(token);
-		
-		return new ResponseModel(events, lastUpdate == default ? null : DateTime.SpecifyKind(lastUpdate, DateTimeKind.Utc));
+
+		return new ResponseModel(
+			events,
+			lastUpdate == default ? null : DateTime.SpecifyKind(lastUpdate, DateTimeKind.Utc),
+			count
+		);
 	}
 
-	// IM NOT DOING JAVASCRIPT DATES
-	
-	public sealed record ResponseModel(List<EventModel> Events, DateTime? LastUpdate);
 
-	public sealed record EventModel(string DateUtc, EventType Type, string? Title, string? Link);
+	public sealed record ResponseModel(List<EventModel> Results, DateTime? LastUpdate, int TotalResults);
+
+	public sealed record EventModel(DateTime Date, EventType Type, string? Title, string? Link);
 }

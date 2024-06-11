@@ -7,15 +7,16 @@ export module EventsApiHelper {
 	export const ApiRoute = `${ApiHelper.ApiDomain}/api/events` as const;
 
 	export type ApiEvent = {
-		dateUtc: string,
+		date: string,
 		type: keyof typeof AllEventTypes,
 		title?: string,
 		link?: string
 	};
 	
 	export type ApiResponse = {
-		events: ApiEvent[],
+		results: ApiEvent[],
 		lastUpdate?: string,
+		totalResults: number
 	}
 
 	export type ApiQuery = {
@@ -55,4 +56,20 @@ export module EventsApiHelper {
 	} as const;
 
 	export type SortType = typeof AllSortTypes[keyof typeof AllSortTypes];
+
+	// manually synced from spreadsheet, colors are mixed with white for readability
+	// TODO: manually lighten colors to look better and readable
+	export const TypeColors = {
+		"TeasersMV": "#ff00ff",
+		"Performance": "#ff9900",
+		"MusicShows": "#d0e0e3",
+		"BehindTheScenes": "#0000ff",
+		"Interview": "#00ff00",
+		"Variety": "#9900ff",
+		"Reality": "#ffff00",
+		"CF": "#ffd966",
+		"Misc": "#4a86e8",
+		"MubankPresident": "#c27ba0",
+		"WeverseLive": "#0be6c1",
+	} as const;
 }
